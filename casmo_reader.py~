@@ -84,7 +84,6 @@ if __name__ == "__main__":
 
     print 'casmo run complete!'
 
-
     # copy bwr.out to local directory
     print 'getting casmo output from cheezit...'
     file_path = '/home/22.39/' + home_dir + '/bwr.out'
