@@ -129,9 +129,9 @@ if __name__ == "__main__":
     counter = 0
     for line in logfile:
         if summary in line:
-            print 'burnup = ' + logfile[counter+1].split()[2] + ' MWD / kg'
-            print 'keff = ' + logfile[counter+1].split()[6]
-            print 'peak power = ' + logfile[counter+4].split()[6]
+            #print 'burnup = ' + logfile[counter+1].split()[2] + ' MWD / kg'
+            #print 'keff = ' + logfile[counter+1].split()[6]
+            #print 'peak power = ' + logfile[counter+4].split()[6]
             line_num = 0
             for i in range(counter+5,counter+15):
                 char_start = 2
