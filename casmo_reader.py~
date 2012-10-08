@@ -38,7 +38,6 @@ if __name__ == "__main__":
     print 'home directory = ' + home_dir
     print 'input file = ' + input_file
 
-
     print 'removing old files...'
     # if old files exist, remove them
     if (os.path.exists('bwr.out')):
@@ -84,6 +83,7 @@ if __name__ == "__main__":
 
     print 'casmo run complete!'
 
+
     # copy bwr.out to local directory
     print 'getting casmo output from cheezit...'
     file_path = '/home/22.39/' + home_dir + '/bwr.out'
@@ -100,10 +100,51 @@ if __name__ == "__main__":
     local_path = os.getcwd() + '/' + o_file
     sftp.get(file_path, local_path)
 
+
     # close ssh, sftp, and transport
     ssh.close()
     sftp.close()
     transport.close()
+
+
+    # parse input file and plot enrichments and gad percents
+    print 'parsing casmo input...'
+    logfile = open(casmo_input, 'r').readlines()
+    pin_type = numpy.zeros(shape=(10,10))
+    pin_num  = numpy.zeros(shape=(10,10))
+    counter = 0
+    for line in logfile:
+        if 'LPI' in line:
+            line_num = 0
+            for i in range(counter+1,counter+11):
+                char_num = 0
+                for j in range(0,line_num+1):
+                    pin_type[line_num,j] = float(logfile[i][char_num])
+                    char_num += 2
+                line_num += 1
+
+        if 'LFU' in line:
+            line_num = 0
+            for i in range(counter+1,counter+11):
+                char_num = 0
+                for j in range(0,line_num+1):
+                    pin_num[line_num,j] = float(logfile[i][char_num])
+                    char_num += 2
+                line_num += 1
+            
+
+        counter += 1
+
+    print pin_type
+    print pin_num
+            
+    #plot fuel enrichments
+    
+
+
+
+
+
 
 
     print 'parsing casmo output...'
@@ -191,7 +232,7 @@ if __name__ == "__main__":
     maximum burnup (where k_inf < 0.95 indicates EOL).
     '''
 
-    logfile = open("casmo.qsub.o954", "r").readlines()
+    logfile = open(o_file, "r").readlines()
     start_table = 'TWO-GROUP'
     end_table = 'RUN TERMINATED'
     peak_pin_powers = []
