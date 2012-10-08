@@ -28,7 +28,7 @@ casmo_reader must be given input of:
 
 The input will look like:
 
->>> python casmo_plotter.py -d 'sshaner' -i 'bwr.inp' -p 'insert_password'
+>>> python casmo_reader.py -d 'sshaner' -i 'bwr.inp' -p 'insert_password'
 
 *****************************************************
 Notes
