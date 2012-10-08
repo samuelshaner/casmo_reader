@@ -12,7 +12,7 @@ if __name__ == "__main__":
     print 'parsing command line input...'
     # parse commandl line options
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "p:d:", ["home_dir", "password"])
+        opts, args = getopt.getopt(sys.argv[1:], "p:d:i:", ["password", "home_dir", "input"])
     except getopt.GetoptError, err:
         print str(err)
         usage()
@@ -20,17 +20,20 @@ if __name__ == "__main__":
 
     pass_word = ''
     home_dir = ''
+    casmo_input = ''
     for o, a in opts:
         if o in ("-p", "--password"):
             pass_word = a
         elif o in ("-d", "--home_dir"):
             home_dir = a
+        elif o in ("-i", "--input"):
+            casmo_input = a
         else:
             assert False, "unhandled option"
 
     print 'password = ' + pass_word
     print 'home directory = ' + home_dir
-
+    print 'casmo input = ' + casmo_input
 
     print 'removing old files...'
     # if old files exist, remove them
@@ -69,10 +72,51 @@ if __name__ == "__main__":
     local_path = os.getcwd() + '/' + o_file
     sftp.get(file_path, local_path)
 
+
     # close ssh, sftp, and transport
     ssh.close()
     sftp.close()
     transport.close()
+
+
+    # parse input file and plot enrichments and gad percents
+    print 'parsing casmo input...'
+    logfile = open(casmo_input, 'r').readlines()
+    pin_type = numpy.zeros(shape=(10,10))
+    pin_num  = numpy.zeros(shape=(10,10))
+    counter = 0
+    for line in logfile:
+        if 'LPI' in line:
+            line_num = 0
+            for i in range(counter+1,counter+11):
+                char_num = 0
+                for j in range(0,line_num+1):
+                    pin_type[line_num,j] = float(logfile[i][char_num])
+                    char_num += 2
+                line_num += 1
+
+        if 'LFU' in line:
+            line_num = 0
+            for i in range(counter+1,counter+11):
+                char_num = 0
+                for j in range(0,line_num+1):
+                    pin_num[line_num,j] = float(logfile[i][char_num])
+                    char_num += 2
+                line_num += 1
+            
+
+        counter += 1
+
+    print pin_type
+    print pin_num
+            
+    #plot fuel enrichments
+    
+
+
+
+
+
 
 
     print 'parsing casmo output...'
