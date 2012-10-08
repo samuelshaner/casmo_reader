@@ -79,7 +79,10 @@ if __name__ == "__main__":
     is_file_running = 'initially'
     while (is_file_running is not ''):
         stdin, stdout, stderr = ssh.exec_command(cmd_str)
-        is_file_running = stdout.readlines()[0]
+        try:
+            is_file_running = stdout.readlines()[0]
+        except:
+            break
 
     print 'casmo run complete!'
 
@@ -109,7 +112,7 @@ if __name__ == "__main__":
 
     # parse input file and plot enrichments and gad percents
     print 'parsing casmo input...'
-    logfile = open(casmo_input, 'r').readlines()
+    logfile = open(input_file, 'r').readlines()
     pin_type = numpy.zeros(shape=(10,10))
     pin_num  = numpy.zeros(shape=(10,10))
     counter = 0

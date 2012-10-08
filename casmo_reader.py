@@ -67,19 +67,22 @@ if __name__ == "__main__":
 
     # run casmo on cheezit
     cmd_str = 'cd /home/22.39/' + home_dir
-    #stdin, stdout, stderr = ssh.exec_command(cmd_str + '; qsub casmo.qsub')
+    stdin, stdout, stderr = ssh.exec_command(cmd_str + '; qsub casmo.qsub')
 
     # Get the first 3 characters of the name of the job - this is the job id
-    #job_name = stdout.readlines()[0]
-    #job_id = job_name[0:3]
+    job_name = stdout.readlines()[0]
+    job_id = job_name[0:3]
 
     # Pause the 
     print 'waiting for cheezit to run casmo....'    
-    #cmd_str = 'qstat | grep ' + str(job_id)
-    #is_file_running = 'initially'
-    #while (is_file_running is not ''):
-        #stdin, stdout, stderr = ssh.exec_command(cmd_str)
-        #is_file_running = stdout.readlines()[0]
+    cmd_str = 'qstat | grep ' + str(job_id)
+    is_file_running = 'initially'
+    while (is_file_running is not ''):
+        stdin, stdout, stderr = ssh.exec_command(cmd_str)
+        try:
+            is_file_running = stdout.readlines()[0]
+        except:
+            break
 
     print 'casmo run complete!'
 
