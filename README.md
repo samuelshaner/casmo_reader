@@ -8,15 +8,15 @@ camso_reader is a Python script to runs Casmo and plots the results in nice, use
 Dependencies
 *****************************************************
 Python Modules:
-    -   Image (part of Python Imaging Library)
-    -   ImageDraw (part of Python Imaging Library)
-    -   ImageFont (part of Python Imaging Library)
-    -   paramiko (ssh/sftp module)
-    -   os
-    -   sys
-    -   getopt
-    -   numpy
-    -   math
+- Image (part of Python Imaging Library)
+- ImageDraw (part of Python Imaging Library)
+- ImageFont (part of Python Imaging Library)
+- paramiko (ssh/sftp module)
+- os
+- sys
+- getopt
+- numpy
+- math
     
 *****************************************************
 Input
