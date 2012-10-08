@@ -12,10 +12,10 @@ Python Modules:
 - ImageDraw (part of Python Imaging Library)
 - ImageFont (part of Python Imaging Library)
 - paramiko (ssh/sftp module)
+- numpy
 - os
 - sys
 - getopt
-- numpy
 - math
     
 *****************************************************
@@ -26,7 +26,7 @@ casmo_reader must be given input of:
 - input file -> The name of the casmo input file (e.g. bwr.inp)
 - password -> the password to cheezit
 
-The input will look like:
+To use, checkout this github repository or copy and paste casmo_reader.py and Helvetica.ttf into a local directory on your computer. Save a casmo input file in this directory as well. The first 5 modules listed above do not come preinstalled with Python, so if you don't have them on your machine, download and install them (It is highly recommended that you use apt-get, MacPorts, HomeBrew, or another package manager to simplify this process). Once you have installed the necessary modules, you can run the code with the command line input below (make sure to insert you directory on cheezit and the cheezit password):
 
 >>> python casmo_reader.py -d 'sshaner' -i 'bwr.inp' -p 'insert_password'
 
@@ -35,6 +35,7 @@ Notes
 *****************************************************
 - Include single quotes for each item in the input.
 - Upon running casmo_reader, bwr.out and all png files will be deleted from your current working director.
+- Pin numbers in bwr.inp can only be numbered 0-9.
 
 *****************************************************
 Output
