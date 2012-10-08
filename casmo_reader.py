@@ -16,7 +16,7 @@ for line in logfile:
         print 'peak power = ' + logfile[counter+4].split()[6]
         for i in range(counter+5,counter+15):
             print logfile[i]
-            word_start = 2
+            word_start = 2    # character start
             for j in range(0,line_num+1):
                 powers[line_num,j] = float(logfile[i][word_start]+logfile[i][word_start+1]+logfile[i][word_start+2]+logfile[i][word_start+3]+logfile[i][word_start+4])
                 word_start += 7

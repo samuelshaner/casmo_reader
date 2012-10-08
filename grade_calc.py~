@@ -1,0 +1,7 @@
+logfile = open("casmo.qsub.o954", "r").readlines()
+start_table = 'TWO-GROUP'
+peak_pin_powers = numpy.zeros(shape=(1,100))   # shouldn't every go above 100 right?
+
+for line in logfile:
+    if start_table in line:
+        
