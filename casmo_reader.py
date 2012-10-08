@@ -89,7 +89,7 @@ if __name__ == "__main__":
     pin_num  = numpy.zeros(shape=(10,10))
     counter = 0
     for line in logfile:
-        if 'LPI' in line:
+        if 'LFU' in line:
             line_num = 0
             for i in range(counter+1,counter+11):
                 char_num = 0
@@ -98,7 +98,7 @@ if __name__ == "__main__":
                     char_num += 2
                 line_num += 1
 
-        if 'LFU' in line:
+        if 'LPI' in line:
             line_num = 0
             for i in range(counter+1,counter+11):
                 char_num = 0
@@ -109,18 +109,17 @@ if __name__ == "__main__":
             
 
         counter += 1
-
-    print pin_type
-    print pin_num
-            
-    #plot fuel enrichments
-    
-
-
+        
+    # fill in empty pin_types nad pin_nums
+    for row in range(0,10):
+        for col in range(row,10):
+            pin_type[row,col] = pin_type[col,row]
+            pin_num[row,col]  = pin_num[col,row]
 
 
-
-
+    #####################################################################################
+    ###############################   Parse bwr.out #####################################
+    #####################################################################################
 
     print 'parsing casmo output...'
     # parse output file and make array of pin powers
@@ -141,8 +140,6 @@ if __name__ == "__main__":
                     char_start += 7
                 line_num += 1
 
-
-            print 'plotting pin powers...'
             # fill in empty pin powers
             for row in range(0,10):
                 for col in range(row,10):
@@ -271,7 +268,7 @@ if __name__ == "__main__":
     '''
 
     # parse bwr.inp and find the ids Gd and non-Gd pins
-    inputfile = open("bwr.inp", "r").readlines()
+    inputfile = open(casmo_input, "r").readlines()
     start_pins = 'FUE'
     end_pins = 'LFU'
     Gd_pin = '64016='
@@ -283,6 +280,7 @@ if __name__ == "__main__":
     # Dictionaries of pin IDs (keys) to pin quantities (values)
     non_Gd_pin_IDs_to_qty = {}
     Gd_pin_IDs_to_qty = {}
+    pin_IDs_to_gad = {}
 
     line_counter = 0
 
@@ -295,12 +293,16 @@ if __name__ == "__main__":
                     Gd_pin_IDs_to_qty[(int(inputfile[line_counter].split()[1]))] = 0
                     # Next set the enrichment for this pin type
                     Gd_pin_IDs_to_enr[(int(inputfile[line_counter].split()[1]))] =  float(inputfile[line_counter].split()[2][5:len(inputfile[line_counter].split()[2])])
+                    # Next set the gad concentration for this pin type
+                    pin_IDs_to_gad[(int(inputfile[line_counter].split()[1]))] = float(inputfile[line_counter].split()[3][6:8])
                 else:
                     # First set number of this given pin to zero - count pins on next loop in script
                     non_Gd_pin_IDs_to_qty[(int(inputfile[line_counter].split()[1]))] = 0
-                    # Next set the enrichment for this pint type
+                    # Next set the enrichment for this pin type
                     non_Gd_pin_IDs_to_enr[(int(inputfile[line_counter].split()[1]))] = float(inputfile[line_counter].split()[2][5:len(inputfile[line_counter].split()[2])])
-                    
+                    # Next set the gad concentration for this pin type
+                    pin_IDs_to_gad[(int(inputfile[line_counter].split()[1]))] = 0.0
+                        
                 line_counter += 1
                 line = inputfile[line_counter]
 
@@ -310,7 +312,7 @@ if __name__ == "__main__":
 
 
     # parse bwr.inp and find the quantity of each pin type in the geometry
-    inputfile = open("bwr.inp", "r").readlines()
+    inputfile = open(casmo_input, "r").readlines()
     start_geometry = 'LFU'
     end_geometry = 'DEP'
     num_non_Gd_pins = 0
@@ -341,6 +343,92 @@ if __name__ == "__main__":
 
         line_counter += 1
 
+
+    # plot enrichments and gad conc.
+    pin_enr = numpy.zeros(shape=(10,10))
+    pin_gad = numpy.zeros(shape=(10,10))
+    for row in range(0,10):
+        for col in range(0,10):
+            pin_gad   [row,col] = pin_IDs_to_gad[int(pin_type[row,col])]
+            if pin_gad[row,col] == 0:
+                pin_enr[row,col] = non_Gd_pin_IDs_to_enr[int(pin_type[row,col])]
+            else:
+                pin_enr[row,col] = Gd_pin_IDs_to_enr[int(pin_type[row,col])]
+
+    # create array of normalized pin powers to plot
+    gad_max = 10
+    enr_max = 4.9
+
+    pin_enr[3,5] = 0.0
+    pin_enr[4,5] = 0.0
+    pin_enr[3,6] = 0.0
+    pin_enr[4,6] = 0.0
+    pin_enr[5,3] = 0.0
+    pin_enr[5,4] = 0.0
+    pin_enr[6,3] = 0.0
+    pin_enr[6,4] = 0.0
+
+    pin_enr_draw = pin_enr/enr_max
+    pin_gad_draw = pin_gad/gad_max
+
+    # create image
+    img_enr = Image.new('RGB', (1000,1000), 'white')
+    img_gad = Image.new('RGB', (1000,1000), 'white')
+    draw_enr = ImageDraw.Draw(img_enr)
+    draw_gad = ImageDraw.Draw(img_gad)
+
+
+    for i in range(0,10):
+        for j in range(0,10):
+                
+            # get color for enr pins
+            if (pin_enr_draw[i,j] <= 1.0/3.0):
+                red_enr = 0.0
+                green_enr = 3.0 * pin_gad_draw[i,j]
+                blue_enr = 1.0
+            elif (pin_enr_draw[i,j] <= 2.0/3.0):
+                red_enr = 3.0 * pin_enr_draw[i,j] - 1.0
+                green_enr = 1.0
+                blue_enr = -3.0 * pin_enr_draw[i,j] + 2.0
+            else:
+                red_enr = 1.0
+                green_enr = -3.0 * pin_enr_draw[i,j] + 3.0
+                blue_enr = 0.0
+
+            # get color for gad pins
+            if (pin_gad_draw[i,j] <= 1.0/3.0):
+                red_gad = 0.0
+                green_gad = 3.0 * pin_gad_draw[i,j]
+                blue_gad = 1.0
+            elif (pin_gad_draw[i,j] <= 2.0/3.0):
+                red_gad = 3.0 * pin_gad_draw[i,j] - 1.0
+                green_gad = 1.0
+                blue_gad = -3.0 * pin_gad_draw[i,j] + 2.0
+            else:
+                red_gad = 1.0
+                green_gad = -3.0 * pin_gad_draw[i,j] + 3.0
+                blue_gad = 0.0
+
+            # convert color to RGB triplet
+            red_enr = int(255*red_enr)
+            green_enr = int(255*green_enr)
+            blue_enr = int(255*blue_enr)
+
+            # convert color to RGB triplet
+            red_gad = int(255*red_gad)
+            green_gad = int(255*green_gad)
+            blue_gad = int(255*blue_gad)
+
+            # draw pin and pin power
+            draw_enr.rectangle([i*100, j*100, (i+1)*100, (j+1)*100], (red_enr,green_enr,blue_enr))
+            draw_gad.rectangle([i*100, j*100, (i+1)*100, (j+1)*100], (red_gad,green_gad,blue_gad))
+            draw_enr.text([i*100+40,j*100+50], str(pin_enr[i,j]), (0,0,0))
+            draw_gad.text([i*100+40,j*100+50], str(pin_gad[i,j]), (0,0,0))
+        
+        
+    # save image
+    img_enr.save('enr.png')
+    img_gad.save('gad.png')
 
     # Hack to account for the water pins
     non_Gd_pin_IDs_to_qty[2] -= 4
