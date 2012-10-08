@@ -207,7 +207,7 @@ if __name__ == "__main__":
     maximum burnup (where k_inf < 0.95 indicates EOL).
     '''
 
-    logfile = open("casmo.qsub.o954", "r").readlines()
+    logfile = open(o_file, "r").readlines()
     start_table = 'TWO-GROUP'
     end_table = 'RUN TERMINATED'
     peak_pin_powers = []
