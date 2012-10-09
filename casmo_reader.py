@@ -413,10 +413,7 @@ class Bundle(object):
                 
                 # loop over the rest of the table
                 while end_table not in line:
-                    
-                    # Check that this k_inf is not beyond EOL
-                    if (self.k_inf[len(self.k_inf)-1] > 0.95):
-                        
+                    if len(line.split()) > 1:
                         self.peak_pin_powers.append(float(logfile[line_counter].split()[5]))
                         self.k_inf.append(float(logfile[line_counter].split()[2]))
                         self.burnup.append(float(logfile[line_counter].split()[1]))
@@ -441,8 +438,15 @@ class Bundle(object):
         max_pin_power = max(self.peak_pin_powers)
         initial_k_inf = self.k_inf[0]
         max_k_inf = max(self.k_inf)
-        eol_burnup = max(self.burnup)
-
+        eol_burnup = 0.0
+        for i in range(len(self.k_inf)):
+            if self.k_inf[i] < .95:
+                eol_burnup = self.burnup[i-1] + (self.burnup[i] - self.burnup[i-1]) * \
+                    (self.k_inf[i-1] - .95) / (self.k_inf[i-1] - self.k_inf[i])
+                break
+                        
+                
+                
         print '\tEOL Burnup = \t\t\t' + str(eol_burnup) + ' [MWD/kg]'
         print '\tMax Pin Power Peaking Factor = \t' + str(max_pin_power)
         print '\tInitial k_inf = \t\t' + str(initial_k_inf)
