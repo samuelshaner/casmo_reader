@@ -35,10 +35,6 @@ if __name__ == "__main__":
         else:
             assert False, "unhandled option"
 
-    print 'password = ' + pass_word
-    print 'home directory = ' + home_dir
-    print 'input file = ' + input_file
-
     print 'removing old files...'
     # if old files exist, remove them
     if (os.path.exists('bwr.out')):
@@ -65,8 +61,12 @@ if __name__ == "__main__":
             for i in range(counter+1,counter+11):
                 char_num = 0
                 for j in range(0,line_num+1):
-                    pin_type[line_num,j] = float(logfile[i][char_num])
-                    char_num += 2
+                    if logfile[i][char_num+1] == ' ':
+                        pin_type[line_num,j] = float(logfile[i][char_num])
+                        char_num += 2
+                    else:
+                        pin_type[line_num,j] = float(logfile[i][char_num] + logfile[i][char_num+1])
+                        char_num += 3
                 line_num += 1
         
         if 'LPI' in line:
@@ -286,7 +286,6 @@ if __name__ == "__main__":
     # run casmo on cheezit
     cmd_str = 'cd /home/22.39/' + home_dir
     stdin, stdout, stderr = ssh.exec_command(cmd_str + '; qsub casmo.qsub')
-    print cmd_str
 
     # Get the first 3 characters of the name of the job - this is the job id
     job_name = stdout.readlines()[0]
@@ -294,7 +293,6 @@ if __name__ == "__main__":
         job_id = job_name[0:3]
     else:
         job_id = job_name[0:4]
-    print 'job_id = ' + job_id
 
     # Pause the 
     print 'waiting for cheezit to run casmo....'
@@ -493,10 +491,10 @@ if __name__ == "__main__":
     # Create a dictionary with key-value pairs of enrichment (w/o) and cost ($/kgU) - 10/7/2012
     U_cost = {2.0 : 727.36, 2.1 : 777.87, 2.2 : 828.67, 2.3 : 879.74, 2.4 : 931.06, 
               2.5 : 982.60, 2.6 : 1034.36, 2.7 : 1086.31, 2.8 : 1138.44, 2.9 : 1190.74, 
-              3.0 : 1243.20, 3.1 : 1295.81, 3.2 : 1384.55, 3.3 : 1401.43, 3.4 : 1454.43, 
+              3.0 : 1243.20, 3.1 : 1295.81, 3.2 : 1384.55, 3.3 : 1401.43, 3.4 : 1454.43,
               3.5 : 1507.54, 3.6 : 1560.77, 3.7 : 1614.09, 3.8 : 1667.52, 3.9 : 1721.04, 
               4.0 : 1774.65, 4.1 : 1828.34, 4.2 : 1882.12, 4.3 : 1935.97, 4.4 : 1989.89, 
-              4.5 : 2042.89, 4.6 : 1097.96, 4.7 : 2152.08, 4.8 : 2206.28, 4.9 : 2260.53}
+              4.5 : 2042.89, 4.6 : 2097.96, 4.7 : 2152.08, 4.8 : 2206.28, 4.9 : 2260.53}
 
     pin_radius = 0.44                   # cm
     pin_length = 409                    # cm
