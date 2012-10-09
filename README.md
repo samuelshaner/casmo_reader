@@ -35,7 +35,7 @@ Notes
 *****************************************************
 - Include single quotes for each item in the input.
 - Upon running casmo_reader, bwr.out and all png files will be deleted from your current working director.
-- Pin numbers in bwr.inp can only be numbered 0-9.
+- Pin numbers in bwr.inp can only be numbered 1-9.
 
 *****************************************************
 Output
