@@ -17,25 +17,30 @@ Python Modules:
 - sys
 - getopt
 - math
+- time
     
 *****************************************************
 Input
 *****************************************************
 casmo_reader must be given input of:
-- home directory -> The name of the directory you have created on cheezit (e.g. sshaner)
-- input file -> The name of the casmo input file (e.g. bwr.inp)
-- password -> the password to cheezit
+- cluster    [-c]   -> the cluster you want to run the code on (e.g. mycluster.mit.edu)
+- username   [-u]   -> Your username for the cluster
+- password   [-p]   -> Your password for the cluster
+- input file [-i]   -> The name of the casmo input file (e.g. ge14.inp)
+- qsub file  [-q]   -> The name of your qsub file (e.g. casmo.qsub)
 
-To use, checkout this github repository or copy and paste casmo_reader.py and Helvetica.ttf into a local directory on your computer. Save a casmo input file in this directory as well. The first 5 modules listed above do not come preinstalled with Python, so if you don't have them on your machine, download and install them (It is highly recommended that you use apt-get, MacPorts, HomeBrew, or another package manager to simplify this process). Once you have installed the necessary modules, you can run the code with the command line input below (make sure to insert you directory on cheezit and the cheezit password):
+To use, checkout this github repository. A sample input file (ge14.inp) has been included and users are recommended to modify this input file to avoid errors (casmo_reader is a bit finnicky with input files). The first 5 modules listed above do not come preinstalled with Python, so if you don't have them on your machine, download and install them (It is highly recommended that you use apt-get, MacPorts, HomeBrew, pip, or another package manager to simplify this process). Once you have installed the necessary modules, you can run the code with the command line input below (make sure to input the proper flags for your username, password, cluster, input file, and qsub file):
 
->>> python casmo_reader.py -d 'sshaner' -i 'bwr.inp' -p 'insert_password'
+>>> python casmo_reader.py -c mycluster.mit.edu -u myusername -p mypassword -i ge14.inp -q 
 
 *****************************************************
 Notes
 *****************************************************
-- Include single quotes for each item in the input.
-- Upon running casmo_reader, bwr.out and all png files will be deleted from your current working director.
-- Pin numbers in bwr.inp can only be numbered 1-9.
+- Upon running casmo_reader, any .out files with the same base input file name and all png files will be overwritten.
+- Pin numbers in the input file can only be numbered 1-9.
+- Water cells must have a nonzero pin number.
+- There must be a blank line after the end of the LFU section.
+- The LPI section must come before the LFU section.
 
 *****************************************************
 Output
@@ -50,8 +55,8 @@ Text
 - Max pin power peaking factor
 - Initial K_inf
 - Max k_inf
-- Total fuel cost
-- Homework grade
+- Total fuel cost (Uranium price update on 10/5/13)
+- Homework grade (For 2012 assignment weights)
 
 
 

@@ -1,0 +1,21 @@
+#!/bin/sh
+#######################################
+# Specify nodes, processors per node,
+# and maximum running time
+#######################################
+
+#PBS -l nodes=1:ppn=1
+#PBS -l walltime=01:00:00
+
+#######################################
+# Enter directory and set PATH
+#######################################
+
+cd $PBS_O_WORKDIR
+PATH=$PBS_O_PATH
+
+#######################################
+# Run MPI job and kill MPD when done
+#######################################
+
+casmo4e ge14.inp

@@ -8,21 +8,25 @@ import sys
 import getopt
 import numpy
 import math
+import time
 
 class Bundle(object):
 
 
-    def __init__(self, pass_word, home_dir, input_file):
+    def __init__(self, pass_word, user_name, input_file, cluster_name, qsub_file):
 
         self.pass_word = pass_word
-        self.home_dir = home_dir
+        self.user_name = user_name
         self.input_file = input_file
+        self.output_file = input_file[:-3] + 'out'
+        self.cluster_name = cluster_name
+        self.qsub_file = qsub_file
         self.font = ImageFont.truetype(os.getcwd() + '/Helvetica.ttf', 20)
     
         print 'removing old files...'
         # if old files exist, remove them
-        if (os.path.exists('bwr.out')):
-            os.system('rm bwr.out')
+        if (os.path.exists(self.output_file)):
+            os.system('rm ' + self.output_file)
         if (os.path.exists('pin_powers00.000.png')):
             os.system('rm *.png')
 
@@ -121,7 +125,6 @@ class Bundle(object):
         # parse bwr.inp and find the quantity of each pin type in the geometry
         logfile = open(self.input_file, "r").readlines()
         start_geometry = 'LFU'
-        end_geometry = 'DEP'
         num_non_Gd_pins = 0
         num_Gd_pins = 0
         line_counter = 0
@@ -132,14 +135,16 @@ class Bundle(object):
                 line_counter += 1
                 line = logfile[line_counter]
                 
-                while end_geometry not in line:
+                while line.split():
                     pin_IDs = logfile[line_counter].split()
+                    print pin_IDs
                     
                     for id in pin_IDs:
                         if int(id) in self.Gd_pin_IDs_to_qty.iterkeys():
                             self.Gd_pin_IDs_to_qty[int(id)] += 1
                             num_Gd_pins += 1
-                        else:
+                        elif int(id) in self.non_Gd_pin_IDs_to_qty.iterkeys():
+                            print id
                             self.non_Gd_pin_IDs_to_qty[int(id)] += 1
                             num_non_Gd_pins += 1
                     
@@ -240,28 +245,33 @@ class Bundle(object):
 
     def runCasmo(self):
             
-        # open transport link to cheezit.mit.edu
+        # open transport link to kilkenny.mit.edu
         port = 22
-        local_path = os.getcwd() + '/bwr.out'
-        host = 'cheezit.mit.edu'
-        transport = paramiko.Transport((host,port))
-        user_name = '22.39'
-        
-        # copy the input file to cheezit.mit.edu
-        print 'transferring ' + self.input_file + ' to cheezit...'
-        transport.connect(username=user_name, password = self.pass_word)
-        sftp = paramiko.SFTPClient.from_transport(transport)
-        remote_path = '/home/22.39/' + self.home_dir + '/bwr.inp'
-        sftp.put(self.input_file, remote_path)
-        
-        # ssh onto cheezit.mit.edu
+        local_path = os.getcwd() + '/' + self.output_file
+        base_dir = '/home/' + self.user_name + '/remote_casmo_run/'
+
+        # connect to cluster
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(host, username=user_name, password = self.pass_word)
+        ssh.connect(self.cluster_name, username = self.user_name, password = self.pass_word)
+
+        # empty base_dir
+        stdin, stdout, stderr = ssh.exec_command('rm -R ' + base_dir)
+        stdin, stdout, stderr = ssh.exec_command('mkdir ' + base_dir)
+
+        # connect to sftp client
+        transport = paramiko.Transport((self.cluster_name,port))
+        transport.connect(username = self.user_name, password = self.pass_word)
+        sftp = paramiko.SFTPClient.from_transport(transport)
+
+        # copy the input file and qsub file to cluster
+        print 'transferring input and qsub files to ' + self.cluster_name + '...'
+        time.sleep(1)
+        sftp.put(self.input_file, base_dir + self.input_file)
+        sftp.put(self.qsub_file, base_dir + self.qsub_file)
         
-        # run casmo on cheezit
-        cmd_str = 'cd /home/22.39/' + self.home_dir
-        stdin, stdout, stderr = ssh.exec_command(cmd_str + '; qsub casmo.qsub')
+        # submit job on cluster on cluster
+        stdin, stdout, stderr = ssh.exec_command('cd ' + base_dir + ' ; qsub ' + self.qsub_file)
         
         # Get the first 3 characters of the name of the job - this is the job id
         job_name = stdout.readlines()[0]
@@ -270,8 +280,8 @@ class Bundle(object):
         else:
             job_id = job_name[0:4]
         
-        # Pause the
-        print 'waiting for cheezit to run casmo....'
+        # Pause and wait for trial to finish
+        print 'waiting for ' + self.cluster_name + ' to run casmo....'
         cmd_str = 'qstat | grep ' + str(job_id)
         is_file_running = 'initially'
         while (is_file_running is not ''):
@@ -282,24 +292,18 @@ class Bundle(object):
                 break
         
         print 'casmo run complete!'
-        
-        
-        # copy bwr.out to local directory
-        print 'getting casmo output from cheezit...'
-        file_path = '/home/22.39/' + self.home_dir + '/bwr.out'
-        sftp.get(file_path, local_path)
-        
-        # get name the last .o file generated
-        cmd_str = 'ls ' + self.home_dir + " -t | grep 'casmo.qsub.o*' | head -n1"
+
+        # get name of the last .o file generated
+        cmd_str = "ls -t " + base_dir + self.qsub_file + ".o* | grep '" + self.qsub_file + ".o*' | head -n1"
         stdin, stdout, stderr = ssh.exec_command(cmd_str)
         self.o_file = stdout.readlines()[0]
-        self.o_file = self.o_file[:-1]
-        
-        # copy last .o file to local directory
-        file_path = '/home/22.39/' + self.home_dir + '/' + self.o_file
-        local_path = os.getcwd() + '/' + self.o_file
-        sftp.get(file_path, local_path)
-        
+        self.o_file = str(self.o_file[:-1])
+        self.o_file = self.o_file[len(base_dir):]
+                
+        # copy casmo .out and .o file to local directory
+        print 'getting casmo output from ' + self.cluster_name + '...'
+        sftp.get(base_dir + self.output_file, self.output_file)
+        sftp.get(base_dir + self.o_file, self.o_file)
         
         # close ssh, sftp, and transport
         ssh.close()
@@ -312,7 +316,7 @@ class Bundle(object):
 
         print 'parsing casmo output...'
         # parse output file and make array of pin powers
-        logfile = open("bwr.out", "r").readlines()
+        logfile = open(self.output_file, "r").readlines()
         summary = 'C A S M O - 4     S U M M A R Y'
         self.powers = numpy.zeros(shape=(10,10))
         counter = 0
@@ -463,13 +467,13 @@ class Bundle(object):
             self.non_Gd_pin_IDs_to_qty[id] *= 2
 
         
-        # Create a dictionary with key-value pairs of enrichment (w/o) and cost ($/kgU) - 10/7/2012
-        U_cost = {2.0 : 727.36, 2.1 : 777.87, 2.2 : 828.67, 2.3 : 879.74, 2.4 : 931.06,
-            2.5 : 982.60, 2.6 : 1034.36, 2.7 : 1086.31, 2.8 : 1138.44, 2.9 : 1190.74,
-            3.0 : 1243.20, 3.1 : 1295.81, 3.2 : 1384.55, 3.3 : 1401.43, 3.4 : 1454.43,
-            3.5 : 1507.54, 3.6 : 1560.77, 3.7 : 1614.09, 3.8 : 1667.52, 3.9 : 1721.04,
-            4.0 : 1774.65, 4.1 : 1828.34, 4.2 : 1882.12, 4.3 : 1935.97, 4.4 : 1989.89,
-            4.5 : 2042.89, 4.6 : 2097.96, 4.7 : 2152.08, 4.8 : 2206.28, 4.9 : 2260.53}
+        # Create a dictionary with key-value pairs of enrichment (w/o) and cost ($/kgU) - 10/5/2013
+        U_cost = {2.0 : 573.44, 2.1 : 613.40, 2.2 : 653.61, 2.3 : 694.03, 2.4 : 734.65,
+            2.5 : 775.46, 2.6 : 816.43, 2.7 : 857.57, 2.8 : 898.85, 2.9 : 940.26,
+            3.0 : 981.81, 3.1 : 1023.47, 3.2 : 1065.25, 3.3 : 1107.13, 3.4 : 1149.11,
+            3.5 : 1191.18, 3.6 : 1233.34, 3.7 : 1275.59, 3.8 : 1317.91, 3.9 : 1360.32,
+            4.0 : 1402.79, 4.1 : 1445.33, 4.2 : 1487.94, 4.3 : 1530.61, 4.4 : 1573.34,
+            4.5 : 1616.12, 4.6 : 1658.96, 4.7 : 1701.86, 4.8 : 1744.80, 4.9 : 1787.79}
 
         pin_radius = 0.44                   # cm
         pin_length = 409                    # cm
@@ -512,33 +516,37 @@ def main():
     print 'parsing command line input...'
     # parse commandl line options
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "p:d:i:", ["home_dir", "password", "inputfile"])
+        opts, args = getopt.getopt(sys.argv[1:], "p:u:i:c:q:", ["username", "password", "inputfile", "clustername", "qsubfile"])
     except getopt.GetoptError, err:
         print str(err)
         usage()
         sys.exit(2)
 
     pass_word = ''
-    home_dir = ''
+    user_name = ''
     input_file = ''
+    cluster_name = ''
+    qsub_file = ''
     for o, a in opts:
         if o in ("-p", "--password"):
-            pass_word = a
-        elif o in ("-d", "--home_dir"):
-            home_dir = a
-        elif o in ("-i", "--input_file"):
-            input_file = a
+            pass_word = str(a)
+        elif o in ("-u", "--username"):
+            user_name = str(a)
+        elif o in ("-i", "--inputfile"):
+            input_file = str(a)
+        elif o in ("-c", "--clustername"):
+            cluster_name = str(a)
+        elif o in ("-q", "--qsubfile"):
+            qsub_file = str(a)
         else:
             assert False, "unhandled option"
 
-    bundle = Bundle(pass_word, home_dir, input_file)
+    bundle = Bundle(pass_word, user_name, input_file, cluster_name, qsub_file)
 
     bundle.makeGeometry()
     bundle.runCasmo()
     bundle.parseOutput()
     bundle.computeGrade()
-
-
 
 if __name__ == '__main__':
 
