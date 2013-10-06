@@ -31,7 +31,7 @@ casmo_reader must be given input of:
 
 To use, checkout this github repository. A sample input file (ge14.inp) has been included and users are recommended to modify this input file to avoid errors (casmo_reader is a bit finnicky with input files). The first 5 modules listed above do not come preinstalled with Python, so if you don't have them on your machine, download and install them (It is highly recommended that you use apt-get, MacPorts, HomeBrew, pip, or another package manager to simplify this process). Once you have installed the necessary modules, you can run the code with the command line input below (make sure to input the proper flags for your username, password, cluster, input file, and qsub file):
 
->>> python casmo_reader.py -c mycluster.mit.edu -u myusername -p mypassword -i ge14.inp -q 
+>>> python casmo_reader.py -c mycluster.mit.edu -u myusername -p mypassword -i ge14.inp -q casmo.qsub
 
 *****************************************************
 Notes
