@@ -9,11 +9,12 @@ import getopt
 import numpy
 import math
 import time
+import matplotlib.pyplot as plt
 
 class Bundle(object):
 
 
-    def __init__(self, pass_word, user_name, input_file, cluster_name, qsub_file):
+    def __init__(self, pass_word, user_name, input_file, cluster_name, qsub_file, o_file):
 
         self.pass_word = pass_word
         self.user_name = user_name
@@ -21,11 +22,12 @@ class Bundle(object):
         self.output_file = input_file[:-3] + 'out'
         self.cluster_name = cluster_name
         self.qsub_file = qsub_file
+        self.o_file = o_file
         self.font = ImageFont.truetype(os.getcwd() + '/Helvetica.ttf', 20)
     
         print 'removing old files...'
         # if old files exist, remove them
-        if (os.path.exists(self.output_file)):
+        if os.path.exists(self.output_file) and o_file == '':
             os.system('rm ' + self.output_file)
         if (os.path.exists('pin_powers00.000.png')):
             os.system('rm *.png')
@@ -36,13 +38,26 @@ class Bundle(object):
         # parse input file and plot enrichments and gad percents
         print 'parsing casmo input...'
         logfile = open(self.input_file, 'r').readlines()
-        self.pin_type = numpy.zeros(shape=(10,10))
-        self.pin_num  = numpy.zeros(shape=(10,10))
+
+        for line in logfile:
+            if 'PWR' in line:
+                self.reactor_type = 'PWR'
+                self.num_pins = 17
+                self.num_input_pins = 9
+            elif 'BWR' in line:
+                self.reactor_type = 'BWR'
+                self.num_pins = 10
+                self.num_input_pins = 10
+
+        self.pin_type = numpy.zeros(shape=(self.num_pins,self.num_pins))
+        self.pin_num  = numpy.zeros(shape=(self.num_pins,self.num_pins))
+
         counter = 0
+
         for line in logfile:
             if 'LFU' in line:
                 line_num = 0
-                for i in range(counter+1,counter+11):
+                for i in range(counter+1,counter+self.num_input_pins+1):
                     char_num = 0
                     for j in range(0,line_num+1):
                         if logfile[i][char_num+1] == ' ':
@@ -52,28 +67,61 @@ class Bundle(object):
                             self.pin_type[line_num,j] = float(logfile[i][char_num] + logfile[i][char_num+1])
                             char_num += 3
                     line_num += 1
-            
+
+            counter += 1
+        
+        counter = 0
+        for line in logfile:
+    
             if 'LPI' in line:
                 line_num = 0
-                for i in range(counter+1,counter+11):
+                for i in range(counter+1,counter+self.num_input_pins+1):
                     char_num = 0
                     for j in range(0,line_num+1):
                         self.pin_num[line_num,j] = float(logfile[i][char_num])
                         char_num += 2
                     line_num += 1
             
-            
             counter += 1
         
         # fill in empty pin_types nad pin_nums
-        for row in range(0,10):
-            for col in range(row,10):
-                self.pin_type[row,col] = self.pin_type[col,row]
-                self.pin_num[row,col]  = self.pin_num[col,row]
-        
+        if self.reactor_type == 'BWR':
+            for row in range(0,self.num_input_pins):
+                for col in range(row,self.num_input_pins):
+                    self.pin_type[row,col] = self.pin_type[col,row]
+                    self.pin_num [row,col] = self.pin_num [col,row]
+        elif self.reactor_type == 'PWR':
+            for row in range(0,self.num_input_pins):
+                for col in range(row,self.num_input_pins):
+                    self.pin_type[row,col] = self.pin_type[col,row]
+                    self.pin_num [row,col] = self.pin_num [col,row]
+                    
+            # fill in empty pins
+            for row in range(0,self.num_input_pins)[::-1]:
+                for col in range(0,self.num_input_pins)[::-1]:
+                    # move to lower right quadrant
+                    self.pin_type[col+8,row+8] = self.pin_type[col,row]
+                    self.pin_num [col+8,row+8] = self.pin_num [col,row]
+
+            for row in range(0,self.num_input_pins):
+                for col in range(0,self.num_input_pins):
+
+                    # reflect about y axis
+                    self.pin_type[16-(col+8),row+8] = self.pin_type[col+8,row+8]
+                    self.pin_num [16-(col+8),row+8] = self.pin_num [col+8,row+8]
+
+                    # reflect about x axis
+                    self.pin_type[col+8,16-(row+8)] = self.pin_type[col+8,row+8]
+                    self.pin_num [col+8,16-(row+8)] = self.pin_num [col+8,row+8]
+
+                    # reflect about y axis then x axis
+                    self.pin_type[16-(col+8),16-(row+8)] = self.pin_type[col+8,row+8]
+                    self.pin_num [16-(col+8),16-(row+8)] = self.pin_num [col+8,row+8]
+
+
         
         '''
-            This portion of the code parses the 'bwr.inp' input file for casmo to find the number of each pin type,
+            This portion of the code parses the  input file for casmo to find the number of each pin type,
             the enrichment for each pin type. It uses this information to compute the total cost for the BWR fuel
             bundle represented by the casmo input file using current fuel costs from the UxC website.
             '''
@@ -87,11 +135,12 @@ class Bundle(object):
         # Dictionaries of pin IDs (keys) to uranium enrichments (values)
         self.non_Gd_pin_IDs_to_enr = {}
         self.Gd_pin_IDs_to_enr = {}
-        
+
         # Dictionaries of pin IDs (keys) to pin quantities (values)
         self.non_Gd_pin_IDs_to_qty = {}
         self.Gd_pin_IDs_to_qty = {}
         self.pin_IDs_to_gad = {}
+        self.non_fuel_pin_IDs_to_qty = {}
         
         line_counter = 0
         
@@ -103,14 +152,20 @@ class Bundle(object):
                         # First set the number of this given pin to zero - count pins on next loop in script
                         self.Gd_pin_IDs_to_qty[(int(logfile[line_counter].split()[1]))] = 0
                         # Next set the enrichment for this pin type
-                        self.Gd_pin_IDs_to_enr[(int(logfile[line_counter].split()[1]))] =  float(logfile[line_counter].split()[2][5:len(logfile[line_counter].split()[2])])
+                        if logfile[line_counter].split()[2][5] == '/':
+                            self.Gd_pin_IDs_to_enr[(int(logfile[line_counter].split()[1]))] =  float(logfile[line_counter].split()[2][6:len(logfile[line_counter].split()[2])])
+                        else:
+                            self.Gd_pin_IDs_to_enr[(int(logfile[line_counter].split()[1]))] =  float(logfile[line_counter].split()[2][5:len(logfile[line_counter].split()[2])])
                         # Next set the gad concentration for this pin type
                         self.pin_IDs_to_gad[(int(logfile[line_counter].split()[1]))] = float(logfile[line_counter].split()[3][6:8])
                     else:
                         # First set number of this given pin to zero - count pins on next loop in script
                         self.non_Gd_pin_IDs_to_qty[(int(logfile[line_counter].split()[1]))] = 0
                         # Next set the enrichment for this pin type
-                        self.non_Gd_pin_IDs_to_enr[(int(logfile[line_counter].split()[1]))] = float(logfile[line_counter].split()[2][5:len(logfile[line_counter].split()[2])])
+                        if logfile[line_counter].split()[2][5] == '/':
+                            self.non_Gd_pin_IDs_to_enr[(int(logfile[line_counter].split()[1]))] = float(logfile[line_counter].split()[2][6:len(logfile[line_counter].split()[2])])
+                        else:
+                            self.non_Gd_pin_IDs_to_enr[(int(logfile[line_counter].split()[1]))] = float(logfile[line_counter].split()[2][5:len(logfile[line_counter].split()[2])])
                         # Next set the gad concentration for this pin type
                         self.pin_IDs_to_gad[(int(logfile[line_counter].split()[1]))] = 0.0
                     
@@ -121,8 +176,7 @@ class Bundle(object):
             
             line_counter += 1
         
-        
-        # parse bwr.inp and find the quantity of each pin type in the geometry
+        # parse input file and find the quantity of each pin type in the geometry
         logfile = open(self.input_file, "r").readlines()
         start_geometry = 'LFU'
         num_non_Gd_pins = 0
@@ -137,16 +191,20 @@ class Bundle(object):
                 
                 while line.split():
                     pin_IDs = logfile[line_counter].split()
-                    print pin_IDs
                     
                     for id in pin_IDs:
                         if int(id) in self.Gd_pin_IDs_to_qty.iterkeys():
                             self.Gd_pin_IDs_to_qty[int(id)] += 1
                             num_Gd_pins += 1
                         elif int(id) in self.non_Gd_pin_IDs_to_qty.iterkeys():
-                            print id
                             self.non_Gd_pin_IDs_to_qty[int(id)] += 1
                             num_non_Gd_pins += 1
+                        elif int(id) in self.non_fuel_pin_IDs_to_qty.iterkeys():
+                            self.non_fuel_pin_IDs_to_qty[int(id)] += 1                            
+                        else:
+                            self.non_fuel_pin_IDs_to_qty[int(id)] = 1
+                            self.pin_IDs_to_gad[int(id)] = 0.0
+
                     
                     line_counter += 1
                     line = logfile[line_counter]
@@ -157,41 +215,43 @@ class Bundle(object):
         
         
         # plot enrichments and gad conc.
-        self.pin_enr = numpy.zeros(shape=(10,10))
-        self.pin_gad = numpy.zeros(shape=(10,10))
-        for row in range(0,10):
-            for col in range(0,10):
+        self.pin_enr = numpy.zeros(shape=(self.num_pins,self.num_pins))
+        self.pin_gad = numpy.zeros(shape=(self.num_pins,self.num_pins))
+        for row in range(0,self.num_pins):
+            for col in range(0,self.num_pins):
                 self.pin_gad   [row,col] = self.pin_IDs_to_gad[int(self.pin_type[row,col])]
-                if self.pin_gad[row,col] == 0:
-                    self.pin_enr[row,col] = self.non_Gd_pin_IDs_to_enr[int(self.pin_type[row,col])]
-                else:
+                if not self.pin_gad[row,col] == 0:
                     self.pin_enr[row,col] = self.Gd_pin_IDs_to_enr[int(self.pin_type[row,col])]
+                elif self.pin_type[row,col] in self.non_fuel_pin_IDs_to_qty.iterkeys():
+                    self.pin_enr[row,col] = 0.0
+                else:
+                    self.pin_enr[row,col] = self.non_Gd_pin_IDs_to_enr[int(self.pin_type[row,col])]
+
         
         # create array of normalized pin powers to plot
         gad_max = 10
         enr_max = 4.9
-        
-        self.pin_enr[3,5] = 0.0
-        self.pin_enr[4,5] = 0.0
-        self.pin_enr[3,6] = 0.0
-        self.pin_enr[4,6] = 0.0
-        self.pin_enr[5,3] = 0.0
-        self.pin_enr[5,4] = 0.0
-        self.pin_enr[6,3] = 0.0
-        self.pin_enr[6,4] = 0.0
+        num_max = self.pin_num.max()
+        type_max = self.pin_type.max()
         
         pin_enr_draw = self.pin_enr/enr_max
         pin_gad_draw = self.pin_gad/gad_max
-        
+        pin_num_draw = self.pin_num/num_max
+        pin_type_draw = self.pin_type/type_max
+
         # create image
         img_enr = Image.new('RGB', (1000,1000), 'white')
         img_gad = Image.new('RGB', (1000,1000), 'white')
+        img_num = Image.new('RGB', (1000,1000), 'white')
+        img_type = Image.new('RGB', (1000,1000), 'white')
         draw_enr = ImageDraw.Draw(img_enr)
         draw_gad = ImageDraw.Draw(img_gad)
+        draw_num = ImageDraw.Draw(img_num)
+        draw_type = ImageDraw.Draw(img_type)
         
         
-        for i in range(0,10):
-            for j in range(0,10):
+        for i in range(0,self.num_pins):
+            for j in range(0,self.num_pins):
                 
                 # get color for enr pins
                 if (pin_enr_draw[i,j] <= 1.0/3.0):
@@ -220,6 +280,34 @@ class Bundle(object):
                     red_gad = 1.0
                     green_gad = -3.0 * pin_gad_draw[i,j] + 3.0
                     blue_gad = 0.0
+
+                # get color for pin nums
+                if (pin_num_draw[i,j] <= 1.0/3.0):
+                    red_num = 0.0
+                    green_num = 3.0 * pin_num_draw[i,j]
+                    blue_num = 1.0
+                elif (pin_num_draw[i,j] <= 2.0/3.0):
+                    red_num = 3.0 * pin_num_draw[i,j] - 1.0
+                    green_num = 1.0
+                    blue_num = -3.0 * pin_num_draw[i,j] + 2.0
+                else:
+                    red_num = 1.0
+                    green_num = -3.0 * pin_num_draw[i,j] + 3.0
+                    blue_num = 0.0
+
+                # get color for pin types
+                if (pin_type_draw[i,j] <= 1.0/3.0):
+                    red_type = 0.0
+                    green_type = 3.0 * pin_type_draw[i,j]
+                    blue_type = 1.0
+                elif (pin_type_draw[i,j] <= 2.0/3.0):
+                    red_type = 3.0 * pin_type_draw[i,j] - 1.0
+                    green_type = 1.0
+                    blue_type = -3.0 * pin_type_draw[i,j] + 2.0
+                else:
+                    red_type = 1.0
+                    green_type = -3.0 * pin_type_draw[i,j] + 3.0
+                    blue_type = 0.0
                 
                 # convert color to RGB triplet
                 red_enr = int(255*red_enr)
@@ -230,17 +318,33 @@ class Bundle(object):
                 red_gad = int(255*red_gad)
                 green_gad = int(255*green_gad)
                 blue_gad = int(255*blue_gad)
+
+                # convert color to RGB triplet
+                red_num = int(255*red_num)
+                green_num = int(255*green_num)
+                blue_num = int(255*blue_num)
+
+                # convert color to RGB triplet
+                red_type = int(255*red_type)
+                green_type = int(255*green_type)
+                blue_type = int(255*blue_type)
                 
                 # draw pin and pin power
-                draw_enr.rectangle([i*100, j*100, (i+1)*100, (j+1)*100], (red_enr,green_enr,blue_enr))
-                draw_gad.rectangle([i*100, j*100, (i+1)*100, (j+1)*100], (red_gad,green_gad,blue_gad))
-                draw_enr.text([i*100+35,j*100+40], str(self.pin_enr[i,j]), (0,0,0), font=self.font)
-                draw_gad.text([i*100+35,j*100+40], str(self.pin_gad[i,j]), (0,0,0), font=self.font)
+                draw_enr.rectangle([i*100*10.0/self.num_pins, j*100*10.0/self.num_pins, (i+1)*100*10.0/self.num_pins, (j+1)*100*10.0/self.num_pins], (red_enr,green_enr,blue_enr))
+                draw_gad.rectangle([i*100*10.0/self.num_pins, j*100*10.0/self.num_pins, (i+1)*100*10.0/self.num_pins, (j+1)*100*10.0/self.num_pins], (red_gad,green_gad,blue_gad))
+                draw_num.rectangle([i*100*10.0/self.num_pins, j*100*10.0/self.num_pins, (i+1)*100*10.0/self.num_pins, (j+1)*100*10.0/self.num_pins], (red_num,green_num,blue_num))
+                draw_type.rectangle([i*100*10.0/self.num_pins, j*100*10.0/self.num_pins, (i+1)*100*10.0/self.num_pins, (j+1)*100*10.0/self.num_pins], (red_type,green_type,blue_type))
+                draw_enr.text([(i*100+35)*10.0/self.num_pins,(j*100+40)*10.0/self.num_pins], str(self.pin_enr[i,j]), (0,0,0), font=self.font)
+                draw_gad.text([(i*100+35)*10.0/self.num_pins,(j*100+40)*10.0/self.num_pins], str(self.pin_gad[i,j]), (0,0,0), font=self.font)
+                draw_num.text([(i*100+35)*10.0/self.num_pins,(j*100+40)*10.0/self.num_pins], str(int(self.pin_num[i,j])), (0,0,0), font=self.font)
+                draw_type.text([(i*100+35)*10.0/self.num_pins,(j*100+40)*10.0/self.num_pins], str(int(self.pin_type[i,j])), (0,0,0), font=self.font)
         
         
         # save image
         img_enr.save('enr.png')
         img_gad.save('gad.png')
+        img_num.save('num.png')
+        img_type.save('type.png')
 
 
     def runCasmo(self):
@@ -255,8 +359,7 @@ class Bundle(object):
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.connect(self.cluster_name, username = self.user_name, password = self.pass_word)
 
-        # empty base_dir
-        stdin, stdout, stderr = ssh.exec_command('rm -R ' + base_dir)
+        # make remote_casmo_run directory on cluster
         stdin, stdout, stderr = ssh.exec_command('mkdir ' + base_dir)
 
         # connect to sftp client
@@ -304,6 +407,9 @@ class Bundle(object):
         print 'getting casmo output from ' + self.cluster_name + '...'
         sftp.get(base_dir + self.output_file, self.output_file)
         sftp.get(base_dir + self.o_file, self.o_file)
+
+        # delete remote_casmo_run directory
+        stdin, stdout, stderr = ssh.exec_command('rm -R ' + base_dir)
         
         # close ssh, sftp, and transport
         ssh.close()
@@ -311,33 +417,57 @@ class Bundle(object):
         transport.close()
 
 
-    def parseOutput(self):
+    def plotPowers(self):
 
 
         print 'parsing casmo output...'
         # parse output file and make array of pin powers
         logfile = open(self.output_file, "r").readlines()
         summary = 'C A S M O - 4     S U M M A R Y'
-        self.powers = numpy.zeros(shape=(10,10))
+        self.powers = numpy.zeros(shape=(self.num_pins,self.num_pins))
         counter = 0
+
         for line in logfile:
             if summary in line:
                 burnup_str = 'burnup = ' + logfile[counter+1].split()[2] + ' MWD / kg'
                 keff_str = 'keff = ' + logfile[counter+1].split()[6]
                 peak_power_str = 'peak power = ' + logfile[counter+4].split()[6]
                 line_num = 0
-                for i in range(counter+5,counter+15):
+                for i in range(counter+5,counter+5+self.num_input_pins):
                     char_start = 2
                     for j in range(0,line_num+1):
                         self.powers[line_num,j] = float(logfile[i][char_start]+logfile[i][char_start+1]+logfile[i][char_start+2]+logfile[i][char_start+3]+logfile[i][char_start+4])
                         char_start += 7
                     line_num += 1
-                
-                # fill in empty pin powers
-                for row in range(0,10):
-                    for col in range(row,10):
-                        self.powers[row,col] = self.powers[col,row]
-                
+
+
+                if self.reactor_type == 'BWR':
+                    for row in range(0,self.num_input_pins):
+                        for col in range(row,self.num_input_pins):
+                            self.powers[row,col] = self.powers[col,row]
+                elif self.reactor_type == 'PWR':
+                    for row in range(0,self.num_input_pins):
+                        for col in range(row,self.num_input_pins):
+                            self.powers[row,col] = self.powers[col,row]
+                    
+                    # fill in empty pins
+                    for row in range(0,self.num_input_pins)[::-1]:
+                        for col in range(0,self.num_input_pins)[::-1]:
+                            # move to lower right quadrant
+                            self.powers[col+8,row+8] = self.powers[col,row]
+
+                    for row in range(0,self.num_input_pins):
+                        for col in range(0,self.num_input_pins):
+
+                            # reflect about y axis
+                            self.powers[16-(col+8),row+8] = self.powers[col+8,row+8]
+                            
+                            # reflect about x axis
+                            self.powers[col+8,16-(row+8)] = self.powers[col+8,row+8]
+
+                            # reflect about y axis then x axis
+                            self.powers[16-(col+8),16-(row+8)] = self.powers[col+8,row+8]
+
                 # create array of normalized pin powers to plot
                 pmax = numpy.max(self.powers)
                 powers_draw = self.powers/pmax
@@ -347,8 +477,8 @@ class Bundle(object):
                 draw = ImageDraw.Draw(img)
                 
                 
-                for i in range(0,10):
-                    for j in range(0,10):
+                for i in range(0,self.num_pins):
+                    for j in range(0,self.num_pins):
                         
                         # get color
                         if (powers_draw[i,j] <= 1.0/3.0):
@@ -370,8 +500,8 @@ class Bundle(object):
                         blue = int(255*blue)
                         
                         # draw pin and pin power
-                        draw.rectangle([i*100, j*100, (i+1)*100, (j+1)*100], (red,green,blue))
-                        draw.text([i*100+25,j*100+40], str(self.powers[i,j]), (0,0,0), font=self.font)
+                        draw.rectangle([i*100*10.0/self.num_pins, j*100*10.0/self.num_pins, (i+1)*100*10.0/self.num_pins, (j+1)*100*10.0/self.num_pins], (red,green,blue))
+                        draw.text([(i*100+15)*10.0/self.num_pins,(j*100+40)*10.0/self.num_pins], str(self.powers[i,j]), (0,0,0), font=self.font)
                 
                 
                 # save image
@@ -386,7 +516,7 @@ class Bundle(object):
             counter += 1
 
 
-    def computeGrade(self):
+    def getBaseDepletionParams(self):
 
         '''
             This portion of the code parses the 'casmo.qsub.o*' condensed output file to find
@@ -397,14 +527,13 @@ class Bundle(object):
         
         logfile = open(self.o_file, "r").readlines()
         start_table = 'TWO-GROUP'
-        end_table = 'RUN TERMINATED'
         self.peak_pin_powers = []
         self.k_inf = []
         self.burnup = []
         line_counter = 0
         data_counter = 0
         
-        # parse casmo.qsub.o954 and find the
+        # parse .o file and find the pin powers
         for line in logfile:
             if start_table in line:
                 line_counter += 1
@@ -412,18 +541,17 @@ class Bundle(object):
                 # pull the initial k_inf value in the table
                 self.peak_pin_powers.append(float(logfile[line_counter].split()[10]))
                 self.k_inf.append(float(logfile[line_counter].split()[8]))
-                self.burnup.append(float(logfile[line_counter].split()[5]))
+                self.burnup.append(float(logfile[line_counter].split()[6]))
                 line_counter += 1
                 
                 # loop over the rest of the table
-                while end_table not in line:
+                while len(line.split()) == 9:
                     if len(line.split()) > 1:
                         self.peak_pin_powers.append(float(logfile[line_counter].split()[5]))
                         self.k_inf.append(float(logfile[line_counter].split()[2]))
                         self.burnup.append(float(logfile[line_counter].split()[1]))
                     
                     # update the counters for the logfile and arrays of data
-                    data_counter += 1
                     line_counter += 1
                     
                     # fetch the next line in the logfile
@@ -431,12 +559,16 @@ class Bundle(object):
             
             line_counter += 1
 
+        # plot k_inf vs burnup
+        plt.figure()
+        plt.plot(self.burnup, self.k_inf)
+        plt.xlabel('burnup (MWd/kg)')
+        plt.ylabel('k_inf')
+        plt.savefig('k_inf_vs_burnup.png')
 
-        # readjust to only include data for k_inf > 0.95 (EOL)
-        if len(self.peak_pin_powers) > 1:
-            self.peak_pin_powers = self.peak_pin_powers[:-1]
-        self.k_inf = self.k_inf[0:len(self.k_inf)-1]
-        self.burnup = self.burnup[0:len(self.burnup)-1]
+
+
+    def computeGrade(self):
 
         # compute max pin power and max k_inf
         max_pin_power = max(self.peak_pin_powers)
@@ -448,19 +580,13 @@ class Bundle(object):
                 eol_burnup = self.burnup[i-1] + (self.burnup[i] - self.burnup[i-1]) * \
                     (self.k_inf[i-1] - .95) / (self.k_inf[i-1] - self.k_inf[i])
                 break
-                        
-                
-                
+                                        
         print '\tEOL Burnup = \t\t\t' + str(eol_burnup) + ' [MWD/kg]'
         print '\tMax Pin Power Peaking Factor = \t' + str(max_pin_power)
         print '\tInitial k_inf = \t\t' + str(initial_k_inf)
         print '\tMax k_inf = \t\t\t' + str(max_k_inf)
         
-        
-        # Hack to account for the water pins
-        self.non_Gd_pin_IDs_to_qty[2] -= 4
-        
-        # Double the quantities of pins to account for a full bundle
+         # Double the quantities of pins to account for a full bundle
         for id in self.Gd_pin_IDs_to_qty.iterkeys():
             self.Gd_pin_IDs_to_qty[id] *= 2
         for id in self.non_Gd_pin_IDs_to_qty.iterkeys():
@@ -503,20 +629,19 @@ class Bundle(object):
         burnup_cost = (100*tot_cost) / (eol_burnup*tot_fuel_mass*24*1000)
         
         print '\tTot. Fuel Cost = $' + str(int(tot_cost)) + ' = ' + str(burnup_cost)[0:5] + ' [cents / kWhr]'
-        
-        
+                
         # compute the final grade!
         grade = 8*(eol_burnup - 46.5) + 4*(1.30 - max_pin_power) + 2*(1.11 - max_k_inf) - 25*burnup_cost
         print '\tYour final grade is: \t\t' + str(int(grade))
 
 
-
 def main():
     
     print 'parsing command line input...'
-    # parse commandl line options
+
+    # parse command line options
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "p:u:i:c:q:", ["username", "password", "inputfile", "clustername", "qsubfile"])
+        opts, args = getopt.getopt(sys.argv[1:], "p:u:i:c:q:o:", ["username", "password", "inputfile", "clustername", "qsubfile", "ofile"])
     except getopt.GetoptError, err:
         print str(err)
         usage()
@@ -527,6 +652,7 @@ def main():
     input_file = ''
     cluster_name = ''
     qsub_file = ''
+    o_file = ''
     for o, a in opts:
         if o in ("-p", "--password"):
             pass_word = str(a)
@@ -538,15 +664,26 @@ def main():
             cluster_name = str(a)
         elif o in ("-q", "--qsubfile"):
             qsub_file = str(a)
+        elif o in ("-o", "--ofile"):
+            o_file = str(a)
         else:
             assert False, "unhandled option"
 
-    bundle = Bundle(pass_word, user_name, input_file, cluster_name, qsub_file)
+    bundle = Bundle(pass_word, user_name, input_file, cluster_name, qsub_file, o_file)
 
     bundle.makeGeometry()
-    bundle.runCasmo()
-    bundle.parseOutput()
-    bundle.computeGrade()
+
+    if o_file == '':
+        bundle.runCasmo()
+    else:
+        bundle.o_file = o_file
+
+    bundle.plotPowers()
+    bundle.getBaseDepletionParams()
+
+    if bundle.reactor_type == 'BWR':
+        bundle.computeGrade()
+
 
 if __name__ == '__main__':
 
