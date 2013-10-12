@@ -78,8 +78,8 @@ class Bundle(object):
                 for i in range(counter+1,counter+self.num_input_pins+1):
                     char_num = 0
                     for j in range(0,line_num+1):
-                        self.pin_num[line_num,j] = float(logfile[i][char_num])
-                        char_num += 2
+                       self.pin_num[line_num,j] = float(logfile[i][char_num])
+                       char_num += 2
                     line_num += 1
             
             counter += 1
@@ -352,7 +352,9 @@ class Bundle(object):
         # open transport link to kilkenny.mit.edu
         port = 22
         local_path = os.getcwd() + '/' + self.output_file
-        base_dir = '/home/' + self.user_name + '/remote_casmo_run/'
+        t = time.gmtime()
+        ts = str(t[1]) + '_' + str(t[2]) + '_' + str(t[0]) + '_' + str(t[3]) + ':' + str(t[4]) + ':' + str(t[5])
+        base_dir = '/home/' + self.user_name + '/remote_casmo_run_' + ts + '/'
 
         # connect to cluster
         ssh = paramiko.SSHClient()
@@ -369,7 +371,7 @@ class Bundle(object):
 
         # copy the input file and qsub file to cluster
         print 'transferring input and qsub files to ' + self.cluster_name + '...'
-        time.sleep(1)
+        time.sleep(1)    # allow time to connect to cluster before attempting to transfer files
         sftp.put(self.input_file, base_dir + self.input_file)
         sftp.put(self.qsub_file, base_dir + self.qsub_file)
         
@@ -378,11 +380,13 @@ class Bundle(object):
         
         # Get the first 3 characters of the name of the job - this is the job id
         job_name = stdout.readlines()[0]
-        if job_name[3] == '.':
-            job_id = job_name[0:3]
-        else:
-            job_id = job_name[0:4]
-        
+        for i,e in enumerate(job_name):
+            if e == '.':
+                job_id = job_name[0:i]
+                break
+            
+        print 'running casmo job with id: ' + str(job_id)
+
         # Pause and wait for trial to finish
         print 'waiting for ' + self.cluster_name + ' to run casmo....'
         cmd_str = 'qstat | grep ' + str(job_id)
