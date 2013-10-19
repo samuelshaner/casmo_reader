@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 class Bundle(object):
 
 
-    def __init__(self, pass_word, user_name, input_file, cluster_name, qsub_file, o_file):
+    def __init__(self, pass_word, user_name, input_file, cluster_name, qsub_file):
 
         self.pass_word = pass_word
         self.user_name = user_name
@@ -22,16 +22,20 @@ class Bundle(object):
         self.output_file = input_file[:-3] + 'out'
         self.cluster_name = cluster_name
         self.qsub_file = qsub_file
-        self.o_file = o_file
         self.font = ImageFont.truetype(os.getcwd() + '/Helvetica.ttf', 20)
     
         print 'removing old files...'
         # if old files exist, remove them
-        if os.path.exists(self.output_file) and o_file == '':
-            os.system('rm ' + self.output_file)
-        if (os.path.exists('pin_powers00.000.png')):
-            os.system('rm *.png')
+        if os.path.exists('plots'):
+            os.system('rm -R plots')
 
+        os.system('mkdir plots')
+            
+        if os.path.exists('input_files') == False:
+            os.system('mkdir input_files')
+
+        if os.path.exists('o_files') == False:
+            os.system('mkdir o_files')
 
     
     def makeGeometry(self):
@@ -340,11 +344,11 @@ class Bundle(object):
                 draw_type.text([(i*100+35)*10.0/self.num_pins,(j*100+40)*10.0/self.num_pins], str(int(self.pin_type[i,j])), (0,0,0), font=self.font)
         
         
-        # save image
-        img_enr.save('enr.png')
-        img_gad.save('gad.png')
-        img_num.save('num.png')
-        img_type.save('type.png')
+        # save images
+        img_enr.save('plots/enr.png')
+        img_gad.save('plots/gad.png')
+        img_num.save('plots/num.png')
+        img_type.save('plots/type.png')
 
 
     def runCasmo(self):
@@ -382,14 +386,14 @@ class Bundle(object):
         job_name = stdout.readlines()[0]
         for i,e in enumerate(job_name):
             if e == '.':
-                job_id = job_name[0:i]
+                self.job_id = job_name[0:i]
                 break
             
-        print 'running casmo job with id: ' + str(job_id)
+        print 'running casmo job with id: ' + str(self.job_id)
 
         # Pause and wait for trial to finish
         print 'waiting for ' + self.cluster_name + ' to run casmo....'
-        cmd_str = 'qstat | grep ' + str(job_id)
+        cmd_str = 'qstat | grep ' + str(self.job_id)
         is_file_running = 'initially'
         while (is_file_running is not ''):
             stdin, stdout, stderr = ssh.exec_command(cmd_str)
@@ -409,8 +413,10 @@ class Bundle(object):
                 
         # copy casmo .out and .o file to local directory
         print 'getting casmo output from ' + self.cluster_name + '...'
-        sftp.get(base_dir + self.output_file, self.output_file)
-        sftp.get(base_dir + self.o_file, self.o_file)
+        sftp.get(base_dir + self.output_file, self.output_file[:-4] + '_' + self.job_id + '.out')
+        self.output_file = self.output_file[:-4] + '_' + self.job_id + '.out'
+        sftp.get(base_dir + self.o_file, 'o_files/' + self.o_file)
+        self.o_file = 'o_files/' + self.o_file
 
         # delete remote_casmo_run directory
         stdin, stdout, stderr = ssh.exec_command('rm -R ' + base_dir)
@@ -419,7 +425,6 @@ class Bundle(object):
         ssh.close()
         sftp.close()
         transport.close()
-
 
     def plotPowers(self):
 
@@ -512,9 +517,9 @@ class Bundle(object):
                 sum_str = burnup_str + '  ' + keff_str + '  ' + peak_power_str
                 draw.text([250,5], sum_str, font=self.font)
                 if float(logfile[counter+1].split()[2]) / 10 < 1.0:
-                    img_str = 'pin_powers0' + logfile[counter+1].split()[2] + '.png'
+                    img_str = 'plots/pin_powers0' + logfile[counter+1].split()[2] + '.png'
                 else:
-                    img_str = 'pin_powers' + logfile[counter+1].split()[2] + '.png'
+                    img_str = 'plots/pin_powers' + logfile[counter+1].split()[2] + '.png'
                 img.save(img_str)
             
             counter += 1
@@ -568,7 +573,7 @@ class Bundle(object):
         plt.plot(self.burnup, self.k_inf)
         plt.xlabel('burnup (MWd/kg)')
         plt.ylabel('k_inf')
-        plt.savefig('k_inf_vs_burnup.png')
+        plt.savefig('plots/k_inf_vs_burnup.png')
 
 
 
@@ -638,6 +643,9 @@ class Bundle(object):
         grade = 8*(eol_burnup - 46.5) + 4*(1.30 - max_pin_power) + 2*(1.11 - max_k_inf) - 25*burnup_cost
         print '\tYour final grade is: \t\t' + str(int(grade))
 
+        with open(self.input_file, 'a') as input_file:
+            input_file.write('* GRADE: ' + str(grade))
+
 
 def main():
     
@@ -645,7 +653,7 @@ def main():
 
     # parse command line options
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "p:u:i:c:q:o:", ["username", "password", "inputfile", "clustername", "qsubfile", "ofile"])
+        opts, args = getopt.getopt(sys.argv[1:], "p:u:i:c:q:", ["username", "password", "inputfile", "clustername", "qsubfile"])
     except getopt.GetoptError, err:
         print str(err)
         usage()
@@ -656,7 +664,7 @@ def main():
     input_file = ''
     cluster_name = ''
     qsub_file = ''
-    o_file = ''
+
     for o, a in opts:
         if o in ("-p", "--password"):
             pass_word = str(a)
@@ -668,25 +676,26 @@ def main():
             cluster_name = str(a)
         elif o in ("-q", "--qsubfile"):
             qsub_file = str(a)
-        elif o in ("-o", "--ofile"):
-            o_file = str(a)
         else:
             assert False, "unhandled option"
 
-    bundle = Bundle(pass_word, user_name, input_file, cluster_name, qsub_file, o_file)
+    bundle = Bundle(pass_word, user_name, input_file, cluster_name, qsub_file)
 
     bundle.makeGeometry()
-
-    if o_file == '':
-        bundle.runCasmo()
-    else:
-        bundle.o_file = o_file
+    bundle.runCasmo()
+    
+    # copy .inp file to unique .inp file
+    os.system('cp ' + str(input_file) + ' input_files/' + input_file[:-4] + '_' + str(bundle.job_id) + '.inp')
+    bundle.input_file = 'input_files/' + input_file[:-4] + '_' + str(bundle.job_id) + '.inp'
 
     bundle.plotPowers()
     bundle.getBaseDepletionParams()
 
     if bundle.reactor_type == 'BWR':
         bundle.computeGrade()
+
+    # remove the .out file
+    os.system('rm ' + str(bundle.output_file))
 
 
 if __name__ == '__main__':
