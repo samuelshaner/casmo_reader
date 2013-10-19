@@ -640,7 +640,7 @@ class Bundle(object):
         print '\tTot. Fuel Cost = $' + str(int(tot_cost)) + ' = ' + str(burnup_cost)[0:5] + ' [cents / kWhr]'
                 
         # compute the final grade!
-        grade = 8*(eol_burnup - 46.5) + 4*(1.30 - max_pin_power) + 2*(1.11 - max_k_inf) - 25*burnup_cost
+        grade = 8*(eol_burnup - 46.5) + 4*(1.30 - max_pin_power) + 2*(1.11 - max_k_inf)
         print '\tYour final grade is: \t\t' + str(int(grade))
 
         with open(self.input_file, 'a') as input_file:
