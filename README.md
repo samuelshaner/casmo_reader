@@ -33,16 +33,12 @@ To use, checkout this github repository. A sample input file (ge14.inp) has been
 
 >>> python casmo_reader.py -c mycluster.mit.edu -u myusername -p mypassword -i ge14.inp -q casmo.qsub
 
-If you have already run your simulation and have the .o file, you can process the output files and compute your grade with the following command
-
->>> python casmo_reader.py -i ge14.inp -o casmo.qsub.o######
-
-Where you replace ge14.inp with your input file and casmo.qsub.o##### with the .o file for your run.
-
 *****************************************************
 Notes
 *****************************************************
-- Upon running casmo_reader, any .out files with the same base input file name and all png files will be overwritten.
+- All .inp files are copied to the input_files directory with their job number included in the input name title
+- At the end of run, the assignment grade is added as a comment to the end of the input file
+- Due to space considerations all .out files are deleted.
 - Pin numbers in the input file can only be numbered 1-9.
 - There must be a blank line after the end of the LFU section.
 - You are also able to run octant symmetric PWR assemblies, but no grade will be computed.
@@ -50,7 +46,7 @@ Notes
 *****************************************************
 Output
 *****************************************************
-Plots
+Plots (will be saved in plots directory)
 - enr.png  -> heat map of pin enrichments
 - gad.png  -> heat map of gadolinium concentration in each pin
 - num.png  -> heat map of LPI pin numbers
